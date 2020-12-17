@@ -1,0 +1,114 @@
+"""通过网格搜索确定最优参数"""
+from sklearn.model_selection import GridSearchCV
+
+def get_best_cv_params(learning_rate=0.1, n_estimators=581, num_leaves=31, max_depth=-1, bagging_fraction=1.0, 
+                       feature_fraction=1.0, bagging_freq=0, min_data_in_leaf=20, min_child_weight=0.001, 
+                       min_split_gain=0, reg_lambda=0, reg_alpha=0, param_grid=None):
+    # 设置5折交叉验证
+    cv_fold = StratifiedKFold(n_splits=5, random_state=0, shuffle=True, )
+    
+    model_lgb = lgb.LGBMClassifier(learning_rate=learning_rate,
+                                   n_estimators=n_estimators,
+                                   num_leaves=num_leaves,
+                                   max_depth=max_depth,
+                                   bagging_fraction=bagging_fraction,
+                                   feature_fraction=feature_fraction,
+                                   bagging_freq=bagging_freq,
+                                   min_data_in_leaf=min_data_in_leaf,
+                                   min_child_weight=min_child_weight,
+                                   min_split_gain=min_split_gain,
+                                   reg_lambda=reg_lambda,
+                                   reg_alpha=reg_alpha,
+                                   n_jobs= 8
+                                  )
+    grid_search = GridSearchCV(estimator=model_lgb, 
+                               cv=cv_fold,
+                               param_grid=param_grid,
+                               scoring='roc_auc'
+                              )
+    grid_search.fit(X_train, y_train)
+
+    print('模型当前最优参数为:{}'.format(grid_search.best_params_))
+    print('模型当前最优得分为:{}'.format(grid_search.best_score_))
+    
+
+"""以下代码未运行，耗时较长，请谨慎运行，且每一步的最优参数需要在下一步进行手动更新，请注意"""
+
+"""
+需要注意一下的是，除了获取上面的获取num_boost_round时候用的是原生的lightgbm（因为要用自带的cv）
+下面配合GridSearchCV时必须使用sklearn接口的lightgbm。
+"""
+"""设置n_estimators 为581，调整num_leaves和max_depth，这里选择先粗调再细调"""
+lgb_params = {'num_leaves': range(10, 80, 5), 'max_depth': range(3,10,2)}
+get_best_cv_params(learning_rate=0.1, n_estimators=581, num_leaves=None, max_depth=None, min_data_in_leaf=20, 
+                   min_child_weight=0.001,bagging_fraction=1.0, feature_fraction=1.0, bagging_freq=0, 
+                   min_split_gain=0, reg_lambda=0, reg_alpha=0, param_grid=lgb_params)
+
+"""num_leaves为30，max_depth为7，进一步细调num_leaves和max_depth"""
+lgb_params = {'num_leaves': range(25, 35, 1), 'max_depth': range(5,9,1)}
+get_best_cv_params(learning_rate=0.1, n_estimators=85, num_leaves=None, max_depth=None, min_data_in_leaf=20, 
+                   min_child_weight=0.001,bagging_fraction=1.0, feature_fraction=1.0, bagging_freq=0, 
+                   min_split_gain=0, reg_lambda=0, reg_alpha=0, param_grid=lgb_params)
+
+"""
+确定min_data_in_leaf为45，min_child_weight为0.001 ，下面进行bagging_fraction、feature_fraction和bagging_freq的调参
+"""
+lgb_params = {'bagging_fraction': [i/10 for i in range(5,10,1)], 
+              'feature_fraction': [i/10 for i in range(5,10,1)],
+              'bagging_freq': range(0,81,10)
+             }
+get_best_cv_params(learning_rate=0.1, n_estimators=85, num_leaves=29, max_depth=7, min_data_in_leaf=45, 
+                   min_child_weight=0.001,bagging_fraction=None, feature_fraction=None, bagging_freq=None, 
+                   min_split_gain=0, reg_lambda=0, reg_alpha=0, param_grid=lgb_params)
+
+"""
+确定bagging_fraction为0.4、feature_fraction为0.6、bagging_freq为 ，下面进行reg_lambda、reg_alpha的调参
+"""
+lgb_params = {'reg_lambda': [0,0.001,0.01,0.03,0.08,0.3,0.5], 'reg_alpha': [0,0.001,0.01,0.03,0.08,0.3,0.5]}
+get_best_cv_params(learning_rate=0.1, n_estimators=85, num_leaves=29, max_depth=7, min_data_in_leaf=45, 
+                   min_child_weight=0.001,bagging_fraction=0.9, feature_fraction=0.9, bagging_freq=40, 
+                   min_split_gain=0, reg_lambda=None, reg_alpha=None, param_grid=lgb_params)
+
+"""
+确定reg_lambda、reg_alpha都为0，下面进行min_split_gain的调参
+"""
+lgb_params = {'min_split_gain': [i/10 for i in range(0,11,1)]}
+get_best_cv_params(learning_rate=0.1, n_estimators=85, num_leaves=29, max_depth=7, min_data_in_leaf=45, 
+                   min_child_weight=0.001,bagging_fraction=0.9, feature_fraction=0.9, bagging_freq=40, 
+                   min_split_gain=None, reg_lambda=0, reg_alpha=0, param_grid=lgb_params)
+
+
+"""
+参数确定好了以后，我们设置一个比较小的learning_rate 0.005，来确定最终的num_boost_round
+"""
+# 设置5折交叉验证
+# cv_fold = StratifiedKFold(n_splits=5, random_state=0, shuffle=True, )
+final_params = {
+                'boosting_type': 'gbdt',
+                'learning_rate': 0.01,
+                'num_leaves': 29,
+                'max_depth': 7,
+                'min_data_in_leaf':45,
+                'min_child_weight':0.001,
+                'bagging_fraction': 0.9,
+                'feature_fraction': 0.9,
+                'bagging_freq': 40,
+                'min_split_gain': 0,
+                'reg_lambda':0,
+                'reg_alpha':0,
+                'nthread': 6
+               }
+
+cv_result = lgb.cv(train_set=lgb_train,
+                   early_stopping_rounds=20,
+                   num_boost_round=5000,
+                   nfold=5,
+                   stratified=True,
+                   shuffle=True,
+                   params=final_params,
+                   metrics='auc',
+                   seed=0,
+                  )
+
+print('迭代次数{}'.format(len(cv_result['auc-mean'])))
+print('交叉验证的AUC为{}'.format(max(cv_result['auc-mean'])))
