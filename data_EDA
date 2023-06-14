@@ -1,6 +1,91 @@
 # 查看数据类型df
 data_train.info()
+
 # 查看数据统计信息
 data_train.describe()
+
 # 查看缺失值列
 print(f'There are {data_train.isnull().any().sum()} columns in train dataset with missing values.')
+
+# 查看缺失特征中缺失率大于50%的特征
+have_null_fea_dict = (data_train.isnull().sum()/len(data_train)).to_dict()
+fea_null_moreThanHalf = {}
+for key,value in have_null_fea_dict.items():
+    if value > 0.5:
+        fea_null_moreThanHalf[key] = value
+fea_null_moreThanHalf   
+
+# nan可视化
+missing = data_train.isnull().sum()/len(data_train)
+missing = missing[missing > 0]
+missing.sort_values(inplace=True)
+missing.plot.bar()
+
+# 查看唯一值的列
+one_value_fea = [col for col in data_train.columns if data_train[col].nunique() <= 1]
+
+# 查看数值型和类别性特征
+numerical_fea = list(data_train.select_dtypes(exclude=['object']).columns)
+category_fea = list(filter(lambda x: x not in numerical_fea,list(data_train.columns)))
+
+# 划分数值型变量中的连续变量和离散型变量
+#过滤数值型类别特征
+def get_numerical_serial_fea(data,feas):
+    numerical_serial_fea = []
+    numerical_noserial_fea = []
+    for fea in feas:
+        temp = data[fea].nunique()
+        if temp <= 10:
+            numerical_noserial_fea.append(fea)
+            continue
+        numerical_serial_fea.append(fea)
+    return numerical_serial_fea,numerical_noserial_fea
+numerical_serial_fea, numerical_noserial_fea = get_numerical_serial_fea(data_train, numerical_fea)
+
+# 数值类别型变量分析
+data_train['term'].value_counts()#离散型变量，column term in noserial
+
+# 数值连续性变量分析
+# 每个数字特征得分布可视化
+f = pd.melt(data_train, value_vars=numerical_serial_fea)
+g = sns.FacetGrid(f, col="variable",  col_wrap=2, sharex=False, sharey=False)
+g = g.map(sns.distplot, "value")
+
+# 查看某一个数值型变量的分布，查看变量是否符合正态分布，如果不符合正太分布的变量可以log化后再观察下是否符合正态分布。
+# 如果想统一处理一批数据变标准化 必须把这些之前已经正态化的数据提出
+# 正态化的原因：一些情况下正态非正态可以让模型更快的收敛，一些模型要求数据正态（eg. GMM、KNN）,保证数据不要过偏态即可，过于偏态可能会影响模型预测结果。
+# Ploting Transaction Amount Values Distribution
+plt.figure(figsize=(16,12))
+plt.suptitle('Transaction Values Distribution', fontsize=22)
+plt.subplot(221)
+sub_plot_1 = sns.distplot(data_train['loanAmnt'])
+sub_plot_1.set_title("loanAmnt Distribuition", fontsize=18)
+sub_plot_1.set_xlabel("")
+sub_plot_1.set_ylabel("Probability", fontsize=15)
+
+plt.subplot(222)
+sub_plot_2 = sns.distplot(np.log(data_train['loanAmnt']))
+sub_plot_2.set_title("loanAmnt (Log) Distribuition", fontsize=18)
+sub_plot_2.set_xlabel("")
+sub_plot_2.set_ylabel("Probability", fontsize=15)
+
+# 非数值类别型变量分析
+data_train['grade'].value_counts()
+data_train['subGrade'].value_counts()
+
+# 单一变量分布可视化
+plt.figure(figsize=(8, 8))
+sns.barplot(data_train["employmentLength"].value_counts(dropna=False)[:20],
+            data_train["employmentLength"].value_counts(dropna=False).keys()[:20])
+plt.show()
+
+# 查看类别型变量在不同y值上的分布
+train_loan_fr = data_train.loc[data_train['isDefault'] == 1]
+train_loan_nofr = data_train.loc[data_train['isDefault'] == 0]
+
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 8))
+train_loan_fr.groupby('grade')['grade'].count().plot(kind='barh', ax=ax1, title='Count of grade fraud')
+train_loan_nofr.groupby('grade')['grade'].count().plot(kind='barh', ax=ax2, title='Count of grade non-fraud')
+train_loan_fr.groupby('employmentLength')['employmentLength'].count().plot(kind='barh', ax=ax3, title='Count of employmentLength fraud')
+train_loan_nofr.groupby('employmentLength')['employmentLength'].count().plot(kind='barh', ax=ax4, title='Count of employmentLength non-fraud')
+plt.show()
