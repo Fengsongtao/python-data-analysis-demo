@@ -1,3 +1,4 @@
+# link:https://tianchi.aliyun.com/notebook/129320
 # 查看数据类型df
 data_train.info()
 
@@ -89,3 +90,22 @@ train_loan_nofr.groupby('grade')['grade'].count().plot(kind='barh', ax=ax2, titl
 train_loan_fr.groupby('employmentLength')['employmentLength'].count().plot(kind='barh', ax=ax3, title='Count of employmentLength fraud')
 train_loan_nofr.groupby('employmentLength')['employmentLength'].count().plot(kind='barh', ax=ax4, title='Count of employmentLength non-fraud')
 plt.show()
+
+# 查看连续型变量在不同y值上的分布
+fig, ((ax1, ax2)) = plt.subplots(1, 2, figsize=(15, 6))
+data_train.loc[data_train['isDefault'] == 1] \
+    ['loanAmnt'].apply(np.log) \
+    .plot(kind='hist',
+          bins=100,
+          title='Log Loan Amt - Fraud',
+          color='r',
+          xlim=(-3, 10),
+         ax= ax1)
+data_train.loc[data_train['isDefault'] == 0] \
+    ['loanAmnt'].apply(np.log) \
+    .plot(kind='hist',
+          bins=100,
+          title='Log Loan Amt - Not Fraud',
+          color='b',
+          xlim=(-3, 10),
+         ax=ax2)
