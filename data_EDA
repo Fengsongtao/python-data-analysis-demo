@@ -1,0 +1,6 @@
+# 查看数据类型df
+data_train.info()
+# 查看数据统计信息
+data_train.describe()
+# 查看缺失值列
+print(f'There are {data_train.isnull().any().sum()} columns in train dataset with missing values.')
