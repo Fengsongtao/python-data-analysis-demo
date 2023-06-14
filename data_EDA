@@ -109,3 +109,20 @@ data_train.loc[data_train['isDefault'] == 0] \
           color='b',
           xlim=(-3, 10),
          ax=ax2)
+
+# 时间格式数据处理及查看
+# 转化成时间格式  issueDateDT特征表示数据日期离数据集中日期最早的日期（2007-06-01）的天数
+data_train['issueDate'] = pd.to_datetime(data_train['issueDate'],format='%Y-%m-%d')
+startdate = datetime.datetime.strptime('2007-06-01', '%Y-%m-%d')
+data_train['issueDateDT'] = data_train['issueDate'].apply(lambda x: x-startdate).dt.days
+
+#转化成时间格式
+data_test_a['issueDate'] = pd.to_datetime(data_train['issueDate'],format='%Y-%m-%d')
+startdate = datetime.datetime.strptime('2007-06-01', '%Y-%m-%d')
+data_test_a['issueDateDT'] = data_test_a['issueDate'].apply(lambda x: x-startdate).dt.days
+
+plt.hist(data_train['issueDateDT'], label='train');
+plt.hist(data_test_a['issueDateDT'], label='test');
+plt.legend();
+plt.title('Distribution of issueDateDT dates');
+#train 和 test issueDateDT 日期有重叠 所以使用基于时间的分割进行验证是不明智的
