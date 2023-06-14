@@ -1,0 +1,80 @@
+# link:https://tianchi.aliyun.com/notebook/129321
+# 等级这种类别特征，是有优先级的可以labelencode或者自映射
+for data in [data_train, data_test_a]:
+    data['grade'] = data['grade'].map({'A':1,'B':2,'C':3,'D':4,'E':5,'F':6,'G':7})
+
+# 类型数在2之上，又不是高维稀疏的,且纯分类特征
+for data in [data_train, data_test_a]:
+    data = pd.get_dummies(data, columns=['subGrade', 'homeOwnership', 'verificationStatus', 'purpose', 'regionCode'], drop_first=True)
+
+# 检测异常的方法一：均方差
+# 在统计学中，如果一个数据分布近似正态，那么大约 68% 的数据值会在均值的一个标准差范围内，大约 95% 会在两个标准差范围内，大约 99.7% 会在三个标准差范围内
+def find_outliers_by_3segama(data,fea):
+    data_std = np.std(data[fea])
+    data_mean = np.mean(data[fea])
+    outliers_cut_off = data_std * 3
+    lower_rule = data_mean - outliers_cut_off
+    upper_rule = data_mean + outliers_cut_off
+    data[fea+'_outliers'] = data[fea].apply(lambda x:str('异常值') if x > upper_rule or x < lower_rule else '正常值')
+    return data
+for fea in numerical_fea:
+    data_train = find_outliers_by_3segama(data_train,fea)
+    print(data_train[fea+'_outliers'].value_counts())
+    print(data_train.groupby(fea+'_outliers')['isDefault'].sum())
+    print('*'*10)
+# 删除异常值
+for fea in numerical_fea:
+    data_train = data_train[data_train[fea+'_outliers']=='正常值']
+    data_train = data_train.reset_index(drop=True)
+    
+# 检测异常的方法二：箱型图
+# 总结一句话：四分位数会将数据分为三个点和四个区间，IQR = Q3 -Q1，下触须=Q1 − 1.5x IQR，上触须=Q3 + 1.5x IQR；
+
+# 数据分桶
+# 1.固定宽度分箱
+# 通过除法映射到间隔均匀的分箱中，每个分箱的取值范围都是loanAmnt/1000
+data['loanAmnt_bin1'] = np.floor_divide(data['loanAmnt'], 1000)
+# 通过对数函数映射到指数宽度分箱
+data['loanAmnt_bin2'] = np.floor(np.log10(data['loanAmnt']))
+# 2.分位数分箱
+data['loanAmnt_bin3'] = pd.qcut(data['loanAmnt'], 10, labels=False)
+# 3.卡方分箱及其他分箱方法的尝试
+#  这一部分属于进阶部分，可以自行搜索尝试
+
+# 特征交互构造新的特征
+for col in ['grade', 'subGrade']: 
+    temp_dict = data_train.groupby([col])['isDefault'].agg(['mean']).reset_index().rename(columns={'mean': col + '_target_mean'})
+    temp_dict.index = temp_dict[col].values
+    temp_dict = temp_dict[col + '_target_mean'].to_dict()
+
+    data_train[col + '_target_mean'] = data_train[col].map(temp_dict)
+    data_test_a[col + '_target_mean'] = data_test_a[col].map(temp_dict)
+# 其他衍生变量 mean 和 std
+for df in [data_train, data_test_a]:
+    for item in ['n0','n1','n2','n2.1','n4','n5','n6','n7','n8','n9','n10','n11','n12','n13','n14']:
+        df['grade_to_mean_' + item] = df['grade'] / df.groupby([item])['grade'].transform('mean')
+        df['grade_to_std_' + item] = df['grade'] / df.groupby([item])['grade'].transform('std')
+
+# 特征编码
+#label-encode:subGrade,postCode,title
+# 高维类别特征需要进行转换
+# labelEncode 直接放入树模型中
+for col in tqdm(['employmentTitle', 'postCode', 'title','subGrade']):
+    le = LabelEncoder()
+    le.fit(list(data_train[col].astype(str).values) + list(data_test_a[col].astype(str).values))
+    data_train[col] = le.transform(list(data_train[col].astype(str).values))
+    data_test_a[col] = le.transform(list(data_test_a[col].astype(str).values))
+print('Label Encoding 完成')
+
+# 逻辑回归等模型要单独增加的特征工程
+# 对特征做归一化，去除相关性高的特征
+# 归一化目的是让训练过程更好更快的收敛，避免特征大吃小的问题
+# 去除相关性是增加模型的可解释性，加快预测过程。
+# 举例归一化过程
+# 伪代码
+for fea in [要归一化的特征列表]：
+    data[fea] = ((data[fea] - np.min(data[fea])) / (np.max(data[fea]) - np.min(data[fea])))
+
+# 最后阶段的特征选择
+# 过滤法，包装法和嵌入法
+ 
