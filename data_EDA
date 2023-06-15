@@ -70,7 +70,7 @@ sub_plot_2.set_title("loanAmnt (Log) Distribuition", fontsize=18)
 sub_plot_2.set_xlabel("")
 sub_plot_2.set_ylabel("Probability", fontsize=15)
 
-# Explore feature distibution 
+# Explore feature distibution，可视化方式一
 #fig = plt.figure(figsize=(6, 6))
 for column in data_all.columns[0:-2]:
     g = sns.kdeplot(data_all[column][(data_all["oringin"] == "train")], color="Red", shade = True)
@@ -79,6 +79,12 @@ for column in data_all.columns[0:-2]:
     g.set_ylabel("Frequency")
     g = g.legend(["train","test"])
     plt.show()
+# 可视化方式二
+fig = plt.figure(figsize=(10, 10))
+for i in range(len(data_all.columns)-2):
+    g = sns.FacetGrid(data_all, col='oringin')
+    g = g.map(sns.distplot, data_all.columns[i])
+
 # 非数值类别型变量分析
 data_train['grade'].value_counts()
 data_train['subGrade'].value_counts()
